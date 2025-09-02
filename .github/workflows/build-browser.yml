@@ -43,6 +43,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive  # por si browser/include/lua51 es submódulo
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
@@ -54,6 +56,11 @@ jobs:
         run: |
           vcpkgCommitId=$(grep '.builtin-baseline' vcpkg.json | awk -F: '{print $2}' | tr -d '," ')
           echo "vcpkgGitCommitId=$vcpkgCommitId" >> $GITHUB_OUTPUT
+
+      # ✅ mover antes del cache
+      - name: Compute vcpkg hash
+        id: hash
+        run: echo "hash=$(sha256sum vcpkg.json | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
       - name: Cache full vcpkg artifacts
         uses: actions/cache@v4
@@ -75,10 +82,6 @@ jobs:
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@v3.31.6
 
-      - name: Compute vcpkg hash
-        id: hash
-        run: echo "hash=$(sha256sum vcpkg.json | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-
       - name: Configure CMake
         run: |
           cmake -G Ninja -S . -B build-${{ matrix.buildtype }} \
@@ -87,15 +90,21 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=wasm32-emscripten \
             -DVCPKG_OVERLAY_PORTS=${{ github.workspace }}/browser/overlay-ports \
             -DVCPKG_BUILD_TYPE=${{ matrix.cmake_build_type }} \
-            -DCMAKE_MAKE_PROGRAM=ninja \
             -DOPTIONS_ENABLE_IPO=OFF \
             -DTOGGLE_BIN_FOLDER=ON \
             -DCMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} \
             -DTOGGLE_BOT_PROTECTION=OFF
 
+      # ✅ nuevo: construir Lua 5.1 (liblua.a) para wasm en la ruta esperada
+      - name: Build embedded Lua 5.1 for Emscripten
+        run: |
+          emmake make -C browser/include/lua51 clean || true
+          emmake make -C browser/include/lua51 -j"$(nproc)"
+          ls -l browser/include/lua51/liblua.a
+
       - name: Build
         run: |
-          cmake --build build-${{ matrix.buildtype }} --target otclient
+          cmake --build build-${{ matrix.buildtype }} --target otclient -j"$(nproc)"
 
       - name: Create and Upload Artifact
         if: ${{ github.event_name != 'pull_request' }}
