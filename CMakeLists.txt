@@ -9,21 +9,21 @@ cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 # cmake -DCMAKE_TOOLCHAIN_FILE=/opt/workspace/vcpkg/scripts/buildsystems/vcpkg.cmake ..
 # .\vcpkg --triplet x64-windows asio luajit glew physfs openal-soft libogg libvorbis zlib opengl nlohmann-json protobuf liblzma openssl
 if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-	set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
+  set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 endif()
 
 if(DEFINED ENV{VCPKG_DEFAULT_TRIPLET} AND NOT DEFINED VCPKG_TARGET_TRIPLET)
-	set(VCPKG_TARGET_TRIPLET "$ENV{VCPKG_DEFAULT_TRIPLET}" CACHE STRING "")
+  set(VCPKG_TARGET_TRIPLET "$ENV{VCPKG_DEFAULT_TRIPLET}" CACHE STRING "")
 endif()
 
 set(VCPKG_FEATURE_FLAGS "versions")
 set(VCPKG_BUILD_TYPE "release")
 
 if (VCPKG_TARGET_ANDROID)
-    include("cmake/vcpkg_android.cmake")
-	set(Android_INCLUDES ${Android_INCLUDES} ${CMAKE_SOURCE_DIR}/android/app/libs/include)
-	set(Android_LIBRARIES ${Android_LIBRARIES} ${CMAKE_SOURCE_DIR}/android/app/libs/lib/${CMAKE_ANDROID_ARCH_ABI})
-	include_directories(Android_INCLUDES)
+  include("cmake/vcpkg_android.cmake")
+  set(Android_INCLUDES ${Android_INCLUDES} ${CMAKE_SOURCE_DIR}/android/app/libs/include)
+  set(Android_LIBRARIES ${Android_LIBRARIES} ${CMAKE_SOURCE_DIR}/android/app/libs/lib/${CMAKE_ANDROID_ARCH_ABI})
+  include_directories(Android_INCLUDES)
 endif()
 
 # *****************************************************************************
@@ -50,21 +50,16 @@ option(OPTIONS_ENABLE_CCACHE "Enable ccache" OFF)
 option(OPTIONS_ENABLE_SCCACHE "Use sccache to speed up compilation process" OFF)
 option(OPTIONS_ENABLE_IPO "Check and Enable interprocedural optimization (IPO/LTO)" ON)
 
-# *****************************************************************************
-# Options Code
-# *****************************************************************************
-
 # === CCACHE ===
 if(OPTIONS_ENABLE_CCACHE)
-	find_program(CCACHE ccache)
-	if(CCACHE)
-		log_option_enabled("ccache")
-		set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE})
-		else()
-		log_option_disabled("ccache")
-	endif()
+  find_program(CCACHE ccache)
+  if(CCACHE)
+    log_option_enabled("ccache")
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE})
+  else()
+    log_option_disabled("ccache")
+  endif()
 endif()
-
 
 # === SCCACHE ===
 if(OPTIONS_ENABLE_SCCACHE)
@@ -78,23 +73,39 @@ if(OPTIONS_ENABLE_SCCACHE)
   endif()
 endif()
 
-
 # === IPO ===
 option(OPTIONS_ENABLE_IPO "Check and Enable interprocedural optimization (IPO/LTO)" ON)
 if(OPTIONS_ENABLE_IPO)
-	log_option_enabled("ipo")
-
-	include(CheckIPOSupported)
-	check_ipo_supported(RESULT result OUTPUT output)
-	if(result)
-		set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-	else()
-		log_war("IPO is not supported: ${output}")
-	endif()
+  log_option_enabled("ipo")
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT result OUTPUT output)
+  if(result)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  else()
+    log_war("IPO is not supported: ${output}")
+  endif()
 else()
-	log_option_disabled("ipo")
+  log_option_disabled("ipo")
 endif()
 
+# *****************************************************************************
+# Lua 5.1 via vcpkg/CMake (LuaJIT no en wasm)
+# *****************************************************************************
+# Requiere que vcpkg instale 'lua51' (especialmente para wasm).
+find_package(Lua 5.1 REQUIRED)
+
+message(STATUS "Found Lua 5.1")
+message(STATUS "  LUA_INCLUDE_DIR = ${LUA_INCLUDE_DIR}")
+message(STATUS "  LUA_LIBRARIES   = ${LUA_LIBRARIES}")
+
+# Exporta variables para subdirectorios que aún no usen target moderno
+set(OTC_LUA_INCLUDE_DIR ${LUA_INCLUDE_DIR} CACHE PATH "Lua include dir for otclient")
+set(OTC_LUA_LIBRARIES   ${LUA_LIBRARIES}   CACHE STRING "Lua libs for otclient")
+
+# Además, crea un target INTERFACE para linkeo moderno desde submódulos
+add_library(otc_lua INTERFACE)
+target_include_directories(otc_lua INTERFACE ${LUA_INCLUDE_DIR})
+target_link_libraries(otc_lua INTERFACE ${LUA_LIBRARIES})
 
 # *****************************************************************************
 # Add project
@@ -102,5 +113,5 @@ endif()
 
 # Protobuf
 add_subdirectory(src/protobuf)
-# Src
+# Src (dentro, enlaza con 'otc_lua' o usa ${OTC_LUA_LIBRARIES} / ${OTC_LUA_INCLUDE_DIR})
 add_subdirectory(src)

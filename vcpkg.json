@@ -26,6 +26,10 @@
       "platform": "!android & !wasm32"
     },
     {
+      "name": "lua51",
+      "platform": "wasm32"
+    },
+    {
       "name": "opengl",
       "platform": "windows | linux"
     },
