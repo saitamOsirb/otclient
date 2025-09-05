@@ -266,6 +266,7 @@ struct ImbuementTrackerItem
     ImbuementTrackerItem(const uint8_t slot) : slot(slot) {}
 
     uint8_t slot;
+    uint8_t totalSlots = 0;
     ItemPtr item;
     std::map<uint8_t, ImbuementSlot> slots;
 };
@@ -439,8 +440,9 @@ public:
     bool isPodium() { return (m_flags & ThingFlagAttrPodium); }
     bool isTopEffect() { return (m_flags & ThingFlagAttrTopEffect); }
     bool hasAction() { return (m_flags & ThingFlagAttrDefaultAction); }
-    bool isOpaque() { if (m_opaque == -1) getTexture(0); return m_opaque == 1; }
+    bool isOpaque() { return m_opaque == 1; }
     bool isDecoKit() { return (m_flags & ThingFlagAttrDecoKit); }
+    bool isLoading() const { return m_loading.load(std::memory_order_acquire); }
 
     bool isItem() const { return m_category == ThingCategoryItem; }
     bool isEffect() const { return m_category == ThingCategoryEffect; }
